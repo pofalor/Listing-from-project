@@ -74,21 +74,24 @@ def sanitize_text(text):
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
 
-def add_file_to_column(cell, file_name, content, file_path):
+def add_file_to_column(cell, file_name, content, file_number):
     # Добавляет содержимое файла в ячейку таблицы
-    # Добавляем имя файла с путем
+    # Добавляем заголовок файла как Heading 1
     p = cell.add_paragraph()
-    run = p.add_run(f"{file_name}")
+    p.style = 'Heading 1'
+    run = p.add_run(f"ПРИЛОЖЕНИЕ {file_number}. {file_name}")
+    run.font.size = Pt(14)  # Уменьшенный шрифт для кода
     run.bold = True
-    run.font.size = Pt(12)
+    run.font.name = 'Times New Roman'
 
-    # Добавляем содержимое
+    # Добавляем содержимое с уменьшенным шрифтом
     p = cell.add_paragraph()
     run = p.add_run(content)
-    run.font.size = Pt(8)
+    run.font.size = Pt(6)  # Уменьшенный шрифт для кода
 
     # Добавляем разделитель
-    cell.add_paragraph()
+    # cell.add_paragraph()
+
 
 def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=None):
     # Рекурсивно проходит по директориям, получает имена и содержимое файлов и добавляет их в документ
@@ -112,7 +115,7 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
 
             file_content = get_file_content(file_path)
             sanitized_content = sanitize_text(file_content)
-            all_files.append((file, sanitized_content, file_path))
+            all_files.append((file, sanitized_content))
 
     if not all_files:
         doc.add_paragraph("Не найдено файлов для обработки (возможно, все игнорируются)")
@@ -133,33 +136,39 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
         left_cell.paragraphs[0].clear()
         right_cell.paragraphs[0].clear()
 
-        for file_name, content, file_path in all_files:
+        file_number = 1
+        for file_name, content in all_files:
             if current_col == 0:
                 # Добавляем в левую колонку
-                add_file_to_column(left_cell, file_name, content, file_path)
+                add_file_to_column(left_cell, file_name, content, file_number)
                 current_col = 1
             else:
                 # Добавляем в правую колонку
-                add_file_to_column(right_cell, file_name, content, file_path)
+                add_file_to_column(right_cell, file_name, content, file_number)
                 current_col = 0
+            file_number += 1
 
         # Если осталась нечетное количество файлов, добавляем пустую строку для симметрии
         if len(all_files) % 2 != 0:
-            add_file_to_column(right_cell, "", "", "")
+            add_file_to_column(right_cell, "", "", file_number)
 
     else:
         # Обычный режим - одна колонка
-        for file_name, content, file_path in all_files:
+        file_number = 1
+        for file_name, content in all_files:
+            # Добавляем заголовок файла как Heading 1
             p = doc.add_paragraph()
-            run = p.add_run(f"{file_name}")
+            p.style = 'Heading 1'
+            run = p.add_run(f"ПРИЛОЖЕНИЕ {file_number}. {file_name}")
             run.bold = True
-            run.font.size = Pt(12)
 
+            # Добавляем содержимое с уменьшенным шрифтом
             p = doc.add_paragraph()
             run = p.add_run(content)
-            run.font.size = Pt(8)
+            run.font.size = Pt(8)  # Уменьшенный шрифт для кода
 
             doc.add_paragraph()  # добавляем пустую строку для разделения файлов
+            file_number += 1
 
 
 def main(target_directory, output_file, use_two_columns=False):
