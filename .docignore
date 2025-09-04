@@ -1,0 +1,58 @@
+.git/
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.gitignore
+.gitattributes
+README.md
+package-lock.json
+architechture.md
+.env
+
+# Файлы зависимостей
+node_modules/
+venv/
+env/
+*.egg-info/
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.temp
+
+# Бинарные файлы
+*.exe
+*.dll
+*.so
+*.dylib
+*.class
+*.jar
+
+# Медиа файлы
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.svg
+
+# Документы (чтобы не дублировать)
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.epub
+
+# Архивы
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
