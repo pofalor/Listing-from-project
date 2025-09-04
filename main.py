@@ -5,26 +5,27 @@ import re
 
 
 def load_ignore_patterns(ignore_file_path='.docignore'):
-    #Загружает паттерны игнорирования из файла.
+    # Загружает паттерны игнорирования из файла
     ignore_patterns = []
-    if os.path.exists(ignore_file_path):
-        try:
-            with open(ignore_file_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):  # Игнорируем пустые строки и комментарии
-                        ignore_patterns.append(line)
-            print(f"Загружено {len(ignore_patterns)} правил игнорирования из {ignore_file_path}")
-        except Exception as e:
-            print(f"Ошибка чтения файла {ignore_file_path}: {e}")
-    else:
-        print(f"Файл {ignore_file_path} не найден, игнорирование отключено")
+    if not os.path.exists(ignore_file_path):
+        raise FileNotFoundError(
+            f"Файл {ignore_file_path} не найден. Создайте файл .docignore для настройки игнорирования")
+
+    try:
+        with open(ignore_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):  # Игнорируем пустые строки и комментарии
+                    ignore_patterns.append(line)
+        print(f"Загружено {len(ignore_patterns)} правил игнорирования из {ignore_file_path}")
+    except Exception as e:
+        print(f"Ошибка чтения файла {ignore_file_path}: {e}")
 
     return ignore_patterns
 
 
 def should_ignore(path, ignore_patterns, is_directory=False):
-    #Проверяет, нужно ли игнорировать файл или папку.
+    # Проверяет, нужно ли игнорировать файл или папку
     if not ignore_patterns:
         return False
 
@@ -52,7 +53,7 @@ def should_ignore(path, ignore_patterns, is_directory=False):
 
 
 def get_file_content(file_path):
-    #Получает содержимое файла.
+    # Получает содержимое файла
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
@@ -67,14 +68,30 @@ def get_file_content(file_path):
 
 
 def sanitize_text(text):
-    #Удаляет из текста символы, несовместимые с XML.
+    # Удаляет из текста символы, несовместимые с XML
     if text is None:
         return ""
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
 
+def add_file_to_column(cell, file_name, content, file_path):
+    # Добавляет содержимое файла в ячейку таблицы
+    # Добавляем имя файла с путем
+    p = cell.add_paragraph()
+    run = p.add_run(f"{file_name}")
+    run.bold = True
+    run.font.size = Pt(12)
+
+    # Добавляем содержимое
+    p = cell.add_paragraph()
+    run = p.add_run(content)
+    run.font.size = Pt(8)
+
+    # Добавляем разделитель
+    cell.add_paragraph()
+
 def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=None):
-    #Рекурсивно проходит по директориям, получает имена и содержимое файлов и добавляет их в документ.
+    # Рекурсивно проходит по директориям, получает имена и содержимое файлов и добавляет их в документ
     if ignore_patterns is None:
         ignore_patterns = []
 
@@ -103,34 +120,33 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
 
     if use_two_columns:
         # Создаем таблицу с двумя колонками
-        table = doc.add_table(rows=0, cols=2)
+        table = doc.add_table(rows=1, cols=2)
         table.autofit = False
         table.columns[0].width = Inches(3)
         table.columns[1].width = Inches(3)
 
-        # Распределяем файлы по двум колонкам
-        for i, (file_name, content, file_path) in enumerate(all_files):
-            if i % 2 == 0:
-                row_cells = table.add_row().cells
+        current_col = 0  # 0 - левая колонка, 1 - правая колонка
+        left_cell = table.rows[0].cells[0]
+        right_cell = table.rows[0].cells[1]
+
+        # Очищаем начальные ячейки
+        left_cell.paragraphs[0].clear()
+        right_cell.paragraphs[0].clear()
+
+        for file_name, content, file_path in all_files:
+            if current_col == 0:
+                # Добавляем в левую колонку
+                add_file_to_column(left_cell, file_name, content, file_path)
+                current_col = 1
             else:
-                row_cells = table.rows[-1].cells
+                # Добавляем в правую колонку
+                add_file_to_column(right_cell, file_name, content, file_path)
+                current_col = 0
 
-            cell = row_cells[i % 2]
-            cell.paragraphs[0].clear()
+        # Если осталась нечетное количество файлов, добавляем пустую строку для симметрии
+        if len(all_files) % 2 != 0:
+            add_file_to_column(right_cell, "", "", "")
 
-            # Добавляем имя файла с путем
-            p = cell.add_paragraph()
-            run = p.add_run(f"{file_name}")
-            run.bold = True
-            run.font.size = Pt(12)
-
-            # Добавляем содержимое
-            p = cell.add_paragraph()
-            run = p.add_run(content)
-            run.font.size = Pt(8)
-
-            # Добавляем пустой параграф для разделения
-            cell.add_paragraph()
     else:
         # Обычный режим - одна колонка
         for file_name, content, file_path in all_files:
@@ -141,14 +157,20 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
 
             p = doc.add_paragraph()
             run = p.add_run(content)
-            run.font.size = Pt(10)
+            run.font.size = Pt(8)
 
             doc.add_paragraph()  # добавляем пустую строку для разделения файлов
 
+
 def main(target_directory, output_file, use_two_columns=False):
-    #Главная функция, создает документ, добавляет в него информацию о файлах и сохраняет его.#
+    # Главная функция, создает документ, добавляет в него информацию о файлах и сохраняет его
     # Загружаем правила игнорирования
-    ignore_patterns = load_ignore_patterns()
+    try:
+        ignore_patterns = load_ignore_patterns()
+    except FileNotFoundError as e:
+        print(f"Внимание: {e}")
+        print("Продолжаем без игнорирования файлов")
+        ignore_patterns = []
 
     doc = docx.Document()
 
@@ -168,13 +190,13 @@ def main(target_directory, output_file, use_two_columns=False):
     doc.save(output_file)
     print(f"Информация о файлах сохранена в '{output_file}'")
     if use_two_columns:
-        print("Режим: две колонки (таблица)")
+        print("Режим: две колонки (интеллектуальное заполнение)")
     else:
         print("Режим: одна колонка")
 
 
 def ask_yes_no_question(question):
-    #Задает вопрос да/нет и возвращает булево значение.#
+    # Задает вопрос да/нет и возвращает булево значение
     while True:
         answer = input(f"{question} (да/нет): ").lower().strip()
         if answer in ['да', 'д', 'yes', 'y']:
@@ -186,8 +208,6 @@ def ask_yes_no_question(question):
 
 
 if __name__ == "__main__":
-    print()
-
     target_directory = input("Введите путь к директории: ")  # Запрашиваем путь к директории у пользователя
     output_file = input("Введите имя выходного файла Word (.docx): ")  # Запрашиваем имя выходного файла
 
