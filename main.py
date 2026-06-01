@@ -1,3 +1,5 @@
+import copy
+import json
 import logging
 import os
 import re
@@ -7,11 +9,49 @@ import docx
 from docx.enum.section import WD_SECTION
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt
+from docx.shared import Pt, RGBColor
 
 
 LOG_FILE = "listing_from_project.log"
+SETTINGS_FILE = "listing_settings.json"
 LOGGER = logging.getLogger(__name__)
+DEFAULT_SETTINGS = {
+    "document": {
+        "title": "Листинг проекта",
+        "title_font_name": "Times New Roman",
+        "title_font_size": 16,
+        "title_color": "#000000",
+        "title_bold": True,
+        "info_font_name": "Times New Roman",
+        "info_font_size": 11,
+        "info_color": "#000000",
+    },
+    "layout": {
+        "two_columns_spacing_inches": 0.25,
+    },
+    "one_column": {
+        "file_name_font_name": "Times New Roman",
+        "file_name_font_size": 14,
+        "file_name_color": "#000000",
+        "file_name_bold": True,
+        "content_font_name": "Courier New",
+        "content_font_size": 8,
+        "content_color": "#000000",
+        "content_line_spacing": 1,
+        "content_space_after": 0,
+    },
+    "two_columns": {
+        "file_name_font_name": "Times New Roman",
+        "file_name_font_size": 10,
+        "file_name_color": "#000000",
+        "file_name_bold": True,
+        "content_font_name": "Courier New",
+        "content_font_size": 6,
+        "content_color": "#000000",
+        "content_line_spacing": 1,
+        "content_space_after": 0,
+    },
+}
 
 
 def configure_logging(log_file=LOG_FILE):
@@ -55,6 +95,62 @@ def set_run_font(run, font_name, size=None):
     run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
     if size is not None:
         run.font.size = Pt(size)
+
+
+def deep_merge_settings(defaults, overrides):
+    settings = copy.deepcopy(defaults)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(settings.get(key), dict):
+            settings[key] = deep_merge_settings(settings[key], value)
+        else:
+            settings[key] = value
+    return settings
+
+
+def load_settings(settings_file_path=SETTINGS_FILE):
+    if not os.path.exists(settings_file_path):
+        LOGGER.warning("Файл настроек %s не найден. Используем настройки по умолчанию", settings_file_path)
+        return copy.deepcopy(DEFAULT_SETTINGS)
+
+    try:
+        with open(settings_file_path, 'r', encoding='utf-8') as f:
+            user_settings = json.load(f)
+        settings = deep_merge_settings(DEFAULT_SETTINGS, user_settings)
+        LOGGER.info("Настройки загружены из %s", settings_file_path)
+        return settings
+    except Exception as e:
+        LOGGER.exception("Ошибка чтения файла настроек %s: %s", settings_file_path, e)
+        LOGGER.warning("Используем настройки по умолчанию")
+        return copy.deepcopy(DEFAULT_SETTINGS)
+
+
+def parse_color(color_value):
+    if not color_value:
+        return None
+
+    value = str(color_value).strip().lstrip('#')
+    if not re.fullmatch(r'[0-9a-fA-F]{6}', value):
+        LOGGER.warning("Некорректный цвет '%s'. Ожидается формат #RRGGBB", color_value)
+        return None
+
+    return RGBColor(
+        int(value[0:2], 16),
+        int(value[2:4], 16),
+        int(value[4:6], 16),
+    )
+
+
+def apply_run_style(run, font_name, font_size=None, color=None, bold=None):
+    if font_name:
+        set_run_font(run, font_name, font_size)
+    elif font_size is not None:
+        run.font.size = Pt(font_size)
+
+    rgb_color = parse_color(color)
+    if rgb_color is not None:
+        run.font.color.rgb = rgb_color
+    if bold is not None:
+        run.bold = bold
 
 
 def load_ignore_patterns(ignore_file_path='.docignore'):
@@ -130,22 +226,32 @@ def sanitize_text(text):
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
 
-def add_file_to_doc(doc, file_name, content, file_number, code_font_size=8, heading_font_size=14):
+def add_file_to_doc(doc, file_name, content, file_number, mode_settings):
     # Добавляет содержимое файла в документ.
     # Добавляем заголовок файла как Heading 1
     p = doc.add_paragraph()
     p.style = 'Heading 1'
     p.paragraph_format.keep_with_next = True
     run = p.add_run(f"ПРИЛОЖЕНИЕ {file_number}. {file_name}")
-    set_run_font(run, 'Times New Roman', heading_font_size)
-    run.bold = True
+    apply_run_style(
+        run,
+        mode_settings.get("file_name_font_name"),
+        mode_settings.get("file_name_font_size"),
+        mode_settings.get("file_name_color"),
+        mode_settings.get("file_name_bold"),
+    )
 
     # Добавляем содержимое с уменьшенным шрифтом
     p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(0)
-    p.paragraph_format.line_spacing = 1
+    p.paragraph_format.space_after = Pt(mode_settings.get("content_space_after", 0))
+    p.paragraph_format.line_spacing = mode_settings.get("content_line_spacing", 1)
     run = p.add_run(content)
-    set_run_font(run, 'Courier New', code_font_size)
+    apply_run_style(
+        run,
+        mode_settings.get("content_font_name"),
+        mode_settings.get("content_font_size"),
+        mode_settings.get("content_color"),
+    )
 
     # Добавляем разделитель
     doc.add_paragraph()
@@ -156,10 +262,12 @@ def log_walk_error(error):
     LOGGER.error("Ошибка обхода директории %s: %s", path, error)
 
 
-def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=None):
+def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=None, settings=None):
     # Рекурсивно проходит по директориям, получает имена и содержимое файлов и добавляет их в документ
     if ignore_patterns is None:
         ignore_patterns = []
+    if settings is None:
+        settings = DEFAULT_SETTINGS
 
     all_files = []
 
@@ -192,12 +300,11 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
         doc.add_paragraph("Не найдено файлов для обработки (возможно, все игнорируются)")
         return
 
-    code_font_size = 6 if use_two_columns else 8
-    heading_font_size = 10 if use_two_columns else 14
+    mode_settings = settings["two_columns"] if use_two_columns else settings["one_column"]
 
     for file_number, (file_path, file_name, content) in enumerate(all_files, start=1):
         try:
-            add_file_to_doc(doc, file_name, content, file_number, code_font_size, heading_font_size)
+            add_file_to_doc(doc, file_name, content, file_number, mode_settings)
         except Exception as e:
             LOGGER.exception("Ошибка добавления файла %s в документ: %s", file_path, e)
             add_file_to_doc(
@@ -205,14 +312,14 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
                 file_name,
                 f"Ошибка добавления файла {file_path} в документ: {e}",
                 file_number,
-                code_font_size,
-                heading_font_size,
+                mode_settings,
             )
 
 
 def main(target_directory, output_file, use_two_columns=False):
     configure_logging()
     LOGGER.info("Начинаем обработку директории %s", target_directory)
+    settings = load_settings()
 
     # Главная функция, создает документ, добавляет в него информацию о файлах и сохраняет его
     # Загружаем правила игнорирования
@@ -225,24 +332,42 @@ def main(target_directory, output_file, use_two_columns=False):
 
     try:
         doc = docx.Document()
+        document_settings = settings["document"]
+        layout_settings = settings["layout"]
 
         # Добавляем заголовок с информацией о настройках
         title = doc.add_paragraph()
-        title_run = title.add_run("Листинг проекта")
-        title_run.bold = True
-        title_run.font.size = Pt(16)
+        title_run = title.add_run(document_settings.get("title", "Листинг проекта"))
+        apply_run_style(
+            title_run,
+            document_settings.get("title_font_name"),
+            document_settings.get("title_font_size"),
+            document_settings.get("title_color"),
+            document_settings.get("title_bold"),
+        )
 
         info = doc.add_paragraph()
-        info.add_run(f"Директория: {target_directory}\n")
-        info.add_run(f"Колонки: {'2' if use_two_columns else '1'}\n")
-        info.add_run(f"Правил игнорирования: {len(ignore_patterns)}\n")
+        info_font_name = document_settings.get("info_font_name")
+        info_font_size = document_settings.get("info_font_size")
+        info_color = document_settings.get("info_color")
+        for text in (
+            f"Директория: {target_directory}\n",
+            f"Колонки: {'2' if use_two_columns else '1'}\n",
+            f"Правил игнорирования: {len(ignore_patterns)}\n",
+        ):
+            info_run = info.add_run(text)
+            apply_run_style(info_run, info_font_name, info_font_size, info_color)
         doc.add_paragraph()
 
         if use_two_columns:
             content_section = doc.add_section(WD_SECTION.CONTINUOUS)
-            set_section_columns(content_section, 2)
+            set_section_columns(
+                content_section,
+                2,
+                layout_settings.get("two_columns_spacing_inches", 0.25),
+            )
 
-        add_file_info_to_doc(target_directory, doc, use_two_columns, ignore_patterns)
+        add_file_info_to_doc(target_directory, doc, use_two_columns, ignore_patterns, settings)
         doc.save(output_file)
         LOGGER.info("Информация о файлах сохранена в '%s'", output_file)
         if use_two_columns:

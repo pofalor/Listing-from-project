@@ -1,0 +1,37 @@
+{
+  "document": {
+    "title": "Листинг проекта",
+    "title_font_name": "Times New Roman",
+    "title_font_size": 16,
+    "title_color": "#000000",
+    "title_bold": true,
+    "info_font_name": "Times New Roman",
+    "info_font_size": 11,
+    "info_color": "#000000"
+  },
+  "layout": {
+    "two_columns_spacing_inches": 0.25
+  },
+  "one_column": {
+    "file_name_font_name": "Times New Roman",
+    "file_name_font_size": 14,
+    "file_name_color": "#000000",
+    "file_name_bold": true,
+    "content_font_name": "Courier New",
+    "content_font_size": 8,
+    "content_color": "#000000",
+    "content_line_spacing": 1,
+    "content_space_after": 0
+  },
+  "two_columns": {
+    "file_name_font_name": "Times New Roman",
+    "file_name_font_size": 10,
+    "file_name_color": "#000000",
+    "file_name_bold": true,
+    "content_font_name": "Courier New",
+    "content_font_size": 6,
+    "content_color": "#000000",
+    "content_line_spacing": 1,
+    "content_space_after": 0
+  }
+}

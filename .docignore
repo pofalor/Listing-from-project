@@ -53,6 +53,7 @@ dist/
 *.avi
 *.mov
 *.svg
+*.ico
 
 # Документы (чтобы не дублировать)
 *.pdf
@@ -76,3 +77,8 @@ Dockerfile
 .dockerignore
 appsettings.json
 *.csproj
+TemplateEngineHost/
+test-results/
+wwwroot/
+Views/
+*.spec.ts
