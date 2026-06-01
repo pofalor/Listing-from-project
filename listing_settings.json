@@ -12,6 +12,10 @@
   "layout": {
     "two_columns_spacing_inches": 0.25
   },
+  "files": {
+    "include_appendix_word": false,
+    "add_blank_line_after_file": false
+  },
   "one_column": {
     "file_name_font_name": "Times New Roman",
     "file_name_font_size": 14,

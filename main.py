@@ -29,6 +29,10 @@ DEFAULT_SETTINGS = {
     "layout": {
         "two_columns_spacing_inches": 0.25,
     },
+    "files": {
+        "include_appendix_word": False,
+        "add_blank_line_after_file": False,
+    },
     "one_column": {
         "file_name_font_name": "Times New Roman",
         "file_name_font_size": 14,
@@ -153,6 +157,13 @@ def apply_run_style(run, font_name, font_size=None, color=None, bold=None):
         run.bold = bold
 
 
+def build_file_heading(file_name, file_number, file_settings):
+    if file_settings.get("include_appendix_word", False):
+        return f"ПРИЛОЖЕНИЕ {file_number}. {file_name}"
+
+    return f"{file_number}. {file_name}"
+
+
 def load_ignore_patterns(ignore_file_path='.docignore'):
     # Загружает паттерны игнорирования из файла
     ignore_patterns = []
@@ -226,13 +237,13 @@ def sanitize_text(text):
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
 
-def add_file_to_doc(doc, file_name, content, file_number, mode_settings):
+def add_file_to_doc(doc, file_name, content, file_number, mode_settings, file_settings):
     # Добавляет содержимое файла в документ.
     # Добавляем заголовок файла как Heading 1
     p = doc.add_paragraph()
     p.style = 'Heading 1'
     p.paragraph_format.keep_with_next = True
-    run = p.add_run(f"ПРИЛОЖЕНИЕ {file_number}. {file_name}")
+    run = p.add_run(build_file_heading(file_name, file_number, file_settings))
     apply_run_style(
         run,
         mode_settings.get("file_name_font_name"),
@@ -253,8 +264,8 @@ def add_file_to_doc(doc, file_name, content, file_number, mode_settings):
         mode_settings.get("content_color"),
     )
 
-    # Добавляем разделитель
-    doc.add_paragraph()
+    if file_settings.get("add_blank_line_after_file", False):
+        doc.add_paragraph()
 
 
 def log_walk_error(error):
@@ -301,10 +312,11 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
         return
 
     mode_settings = settings["two_columns"] if use_two_columns else settings["one_column"]
+    file_settings = settings.get("files", DEFAULT_SETTINGS["files"])
 
     for file_number, (file_path, file_name, content) in enumerate(all_files, start=1):
         try:
-            add_file_to_doc(doc, file_name, content, file_number, mode_settings)
+            add_file_to_doc(doc, file_name, content, file_number, mode_settings, file_settings)
         except Exception as e:
             LOGGER.exception("Ошибка добавления файла %s в документ: %s", file_path, e)
             add_file_to_doc(
@@ -313,6 +325,7 @@ def add_file_info_to_doc(directory, doc, use_two_columns=False, ignore_patterns=
                 f"Ошибка добавления файла {file_path} в документ: {e}",
                 file_number,
                 mode_settings,
+                file_settings,
             )
 
 
