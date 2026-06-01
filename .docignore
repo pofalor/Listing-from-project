@@ -10,13 +10,24 @@ __pycache__/
 README.md
 package-lock.json
 architechture.md
+architecture.md
 .env
+.github/
+.vs/
+project_description_vkr.md
+testing.md
+prompts.txt
+test_model.txt
+bin/
+obj/
 
 # Файлы зависимостей
 node_modules/
 venv/
 env/
 *.egg-info/
+dist/
+.angular/
 
 # Логи и временные файлы
 *.log
@@ -56,3 +67,12 @@ env/
 *.7z
 *.tar
 *.gz
+
+# SQL запросы
+*.sql
+
+# Специфичные файлы для .NET
+Dockerfile
+.dockerignore
+appsettings.json
+*.csproj
