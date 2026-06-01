@@ -236,6 +236,7 @@ fabric.properties
 .idea/.name
 .idea
 *.docx
+*.pdf
 
 # Cursor  
 #  Cursor is an AI-powered code editor.`.cursorignore` specifies files/directories to 
