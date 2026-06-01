@@ -1,4 +1,4 @@
-# listing-from-project
+# Получение листинга по проекту
 
 Записывает содержимое всех файлов в заданной директории в Word-файл.
 
@@ -14,7 +14,7 @@ py -m venv .venv
 3. Активируйте виртуальное окружение:
 
 ```powershell
-.\.venv\Scripts\activate
+.\.venv\Scripts\activate.bat
 ```
 
 4. Установите зависимости:
